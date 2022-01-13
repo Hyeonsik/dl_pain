@@ -1,0 +1,9 @@
+*.npz
+*.zip
+*.vital
+*.pickle
+*.csv
+
+
+.ipynb_checkpoints
+**/*.ipynb_checkpoints/
