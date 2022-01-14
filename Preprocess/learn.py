@@ -66,8 +66,10 @@ def load_vital_data(file_path):
                 print(f'caseid {caseid} - no valid data for insp_tm')
                 continue
             intu = vals[:,3]
+            intv = 850 # maximum interval for "Primus/SET_INSP_TM"
         else:
             intu = vals[:,2]
+            intv = 250 # maximum interval for "Solar8000/VENT_INSP_TM"
         
         idc_intu = np.where(~np.isnan(intu))[0]
         while True:
@@ -79,7 +81,7 @@ def load_vital_data(file_path):
 
                 switch = True
                 for i in range(1,11):
-                    if idc_intu[idx+i] - prev > 210:
+                    if idc_intu[idx+i] - prev > intv:
                         switch = False
                         t_intu = t_intu + 1
                     prev = idc_intu[idx+i]
@@ -312,7 +314,9 @@ def preprocess(file_path, LEN_INPUT = 20, OVERLAP = 10, SRATE = 100):
                 bool_pass = False
 
             # 이 segment의 정보를 dataframe에 저장 - (전처리 성공여부, 전처리 nan 비율, 전처리 noise 비율, 통증 점수)
-            df_preprocess.loc[f_num-1,f'{i+1}'] = [bool_pass, nan_info, noise_info, 0, 0] #{'pass':bool_pass, 'nan_perc':nan_info, 'noise_perc':noise_info, 'tss':0, 'cisa':0}        
+            arr = np.empty(1, dtype=object)
+            arr[0] = [bool_pass, nan_info, noise_info, 0, 0]
+            df_preprocess.loc[f_num-1,f'{i+1}'] = arr #{'pass':bool_pass, 'nan_perc':nan_info, 'noise_perc':noise_info, 'tss':0, 'cisa':0}        
             print('preprocessing done...', end='')
             ##########################################################################
 
@@ -474,7 +478,9 @@ def preprocess(file_path, LEN_INPUT = 20, OVERLAP = 10, SRATE = 100):
             cisa = 7 - rftn / 8
 
             # 이 segment의 정보를 dataframe에 저장
-            df_preprocess.loc[f_num-1,f'{i+n_aug+1}'] = [bool_pass, nan_info, noise_info, tss, cisa] #{'pass':bool_pass, 'nan_perc':nan_info, 'noise_perc':noise_info, 'tss':tss, 'cisa':cisa}       
+            arr = np.empty(1, dtype=object)
+            arr[0] = [bool_pass, nan_info, noise_info, 0, 0]
+            df_preprocess.loc[f_num-1,f'{i+n_aug+1}'] = arr #{'pass':bool_pass, 'nan_perc':nan_info, 'noise_perc':noise_info, 'tss':0, 'cisa':0}            
             print('preprocessing done...', end='')            
 
     print(f'\ndumping cache of df_preprocess {f_num}/{len(caseids)}', end='...')
@@ -512,7 +518,7 @@ def preprocess(file_path, LEN_INPUT = 20, OVERLAP = 10, SRATE = 100):
 
 # loading ~ preprocessing
 file_path = 'vital_to_np'
-load_vital_data(file_path)
+#load_vital_data(file_path)
 preprocess(file_path, LEN_INPUT = 20, OVERLAP = 10, SRATE = 100)
 df_preprocess = pickle.load(open('cache/preprocess/df_preprocess', 'rb'))
 
@@ -551,7 +557,6 @@ if not os.path.exists('cache'):
     os.mkdir('cache')
 
 
-
 for f_num, rows in df_preprocess.iterrows():
     caseid = rows['caseid']
     print(f'\n###Input{f_num}/{len(df_preprocess)}: {caseid}###')
@@ -586,9 +591,50 @@ for f_num, rows in df_preprocess.iterrows():
             ppg_input = ppg_inp - lowess(ppg_inp)
             ecg_input = ecg_inp - lowess(ecg_inp)
             
-            np.savez(save_path, ECG = ecg_input, PPG = ppg_input)
-            print('done', end=' ')
+            ppg_input = ppg_input - np.nanmean(ppg_input)
+            ecg_input = (ecg_input - min(ecg_input)) / (max(ecg_input) - min(ecg_input))
+            
 
+            # 해당 caseid가 test set에 속하는 경우
+            if row['caseid'] in caseid_test:
+                age_test.append(int(row['age']))
+                if row['gender']=='F':
+                    gender_test.append(1)
+                else:
+                    gender_test.append(0)
+                x_test.append([ppg_input, ecg_input])
+                tss_test.append(row[str(i+1)][3])
+                cisa_test.append(row[str(i+1)][4])
+
+            # 해당 caseid가 val set에 해당하는 경우
+            elif row['caseid'] in caseid_val:
+                age_val.append(int(row['age']))
+                if row['gender']=='F':
+                    gender_val.append(1)
+                else:
+                    gender_val.append(0)                    
+                x_val.append([ppg_input, ecg_input])
+                tss_val.append(row[str(i+1)][3])
+                cisa_val.append(row[str(i+1)][4])
+
+            # 해당 caseid가 train set에 해당하는 경우
+            elif row['caseid'] in caseid_train:
+                age_train.append(int(row['age']))
+                if row['gender']=='F':
+                    gender_train.append(1)
+                else:
+                    gender_train.append(0)                    
+                x_train.append([ppg_input, ecg_input])
+                tss_train.append(row[str(i+1)][3])
+                cisa_train.append(row[str(i+1)][4])
+
+            else:
+                print('no case%$')
+                non_lis.append(row['caseid'])
+
+            #np.savez(save_path, ECG = ecg_input, PPG = ppg_input)
+            print('done', end=' ')
+    
     print('')
     for i in range(n_aug):
         print('  segment', i+1, end='')
@@ -614,6 +660,99 @@ for f_num, rows in df_preprocess.iterrows():
             ppg_input = ppg_inp - lowess(ppg_inp)
             ecg_input = ecg_inp - lowess(ecg_inp)
             
-            np.savez(save_path, ECG = ecg_input, PPG = ppg_input) 
+            ppg_input = ppg_input - np.nanmean(ppg_input)
+            ecg_input = (ecg_input - min(ecg_input)) / (max(ecg_input) - min(ecg_input))
+
+
+            # 해당 caseid가 test set에 속하는 경우
+            if row['caseid'] in caseid_test:
+                age_test.append(int(row['age']))
+                if row['gender']=='F':
+                    gender_test.append(1)
+                else:
+                    gender_test.append(0)
+                x_test.append([ppg_input, ecg_input])
+                tss_test.append(row[str(i+n_aug+1)][3])
+                cisa_test.append(row[str(i+n_aug+1)][4])
+
+            # 해당 caseid가 val set에 해당하는 경우
+            elif row['caseid'] in caseid_val:
+                age_val.append(int(row['age']))
+                if row['gender']=='F':
+                    gender_val.append(1)
+                else:
+                    gender_val.append(0)                    
+                x_val.append([ppg_input, ecg_input])
+                tss_val.append(row[str(i+n_aug+1)][3])
+                cisa_val.append(row[str(i+n_aug+1)][4])
+
+            # 해당 caseid가 train set에 해당하는 경우
+            elif row['caseid'] in caseid_train:
+                age_train.append(int(row['age']))
+                if row['gender']=='F':
+                    gender_train.append(1)
+                else:
+                    gender_train.append(0)                    
+                x_train.append([ppg_input, ecg_input])
+                tss_train.append(row[str(i+n_aug+1)][3])
+                cisa_train.append(row[str(i+n_aug+1)][4])
+
+            else:
+                print('no case%$')
+                non_lis.append(row['caseid'])                 
+            
+            #np.savez(save_path, ECG = ecg_input, PPG = ppg_input) 
             print('done', end=' ')
+
+    x_train = np.array(x_train, np.float32)
+    x_test = np.array(x_test, np.float32)
+    x_val = np.array(x_val, np.float32)
+    tss_train = np.array(tss_train, np.float32)
+    tss_test = np.array(tss_test, np.float32)
+    tss_val = np.array(tss_val, np.float32)
+    cisa_train = np.array(cisa_train, np.float32)
+    cisa_test = np.array(cisa_test, np.float32)
+    cisa_val = np.array(cisa_val, np.float32)
+        
+    age_train = np.array(age_train, int)
+    age_test = np.array(age_test, int)
+    age_val = np.array(age_val, int)
+    gender_train = np.array(gender_train, int)
+    gender_test = np.array(gender_test, int)
+    gender_val = np.array(gender_val, int)
     
+    
+    # 알맞게 input 변환
+    x_train = np.transpose(x_train, [0,2,1])
+    x_val = np.transpose(x_val, [0,2,1])
+    x_test = np.transpose(x_test, [0,2,1])
+
+    print('after concatenate + transpose')
+    print('x_train shape:', x_train.shape)
+    print('x_val shape:', x_val.shape)
+    print('x_test shape:', x_test.shape)
+
+          
+    # 저장하기
+    print('saving...', end='', flush=True)
+    np.savez_compressed(input_path+'x_train.npz', x_train)
+    np.savez_compressed(input_path+'x_test.npz', x_test)
+    np.savez_compressed(input_path+'x_val.npz', x_val)
+    np.savez_compressed(input_path+'tss_train.npz', tss_train)
+    np.savez_compressed(input_path+'tss_test.npz', tss_test)
+    np.savez_compressed(input_path+'tss_val.npz', tss_val)
+    np.savez_compressed(input_path+'cisa_train.npz', cisa_train)
+    np.savez_compressed(input_path+'cisa_test.npz', cisa_test)
+    np.savez_compressed(input_path+'cisa_val.npz', cisa_val)
+    
+    np.savez_compressed(input_path+'age_train.npz', age_train)
+    np.savez_compressed(input_path+'age_test.npz', age_test)
+    np.savez_compressed(input_path+'age_val.npz', age_val)    
+    np.savez_compressed(input_path+'gender_train.npz', gender_train)
+    np.savez_compressed(input_path+'gender_test.npz', gender_test)
+    np.savez_compressed(input_path+'gender_val.npz', gender_val)    
+    
+    print('done', flush=True)
+    print('size of training set(pacu):', len(x_train))
+    print('size of validation set(pacu):', len(x_val))
+    print('size of test set(pacu):', len(x_test))
