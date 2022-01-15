@@ -13,12 +13,14 @@ import matplotlib.pyplot as plt
 import scipy.stats
 
 
-POSTOP_VITAL_PATH = 'pacu_vital_ext'
-
 BATCH_SIZE = 1024
 MAX_CASES = 2000
-SRATE = 100
 SEGLEN_IN_SEC = 20
+SRATE = 100
+LEN_INPUT = 20
+OVERLAP = 10
+LEN_PER_PRE = 60
+LEN_PER_POST = 120
 
 
 def load_vital_data(file_path):
@@ -100,14 +102,14 @@ def load_vital_data(file_path):
 
 
         # after intubation, pain calculated using TSS, CISA
-        post_ppg = ppg[t_intu:t_intu + SRATE*60]
-        post_ecg = ecg[t_intu:t_intu + SRATE*60]
+        post_ppg = ppg[t_intu:t_intu + SRATE*LEN_PER_POST]
+        post_ecg = ecg[t_intu:t_intu + SRATE*LEN_PER_POST]
         
         ppf = vals[:,4]
-        ppf = ppf[t_intu:t_intu + SRATE*60]
+        ppf = ppf[t_intu:t_intu + SRATE*LEN_PER_POST]
 
         rftn = vals[:,5]
-        rftn = rftn[t_intu:t_intu + SRATE*60]
+        rftn = rftn[t_intu:t_intu + SRATE*LEN_PER_POST]
     
     
         np.savez(filename, nECG=prev_ecg, nPPG=prev_ppg, ECG=post_ecg, PPG=post_ppg, PPF=ppf, RFTN=rftn)
@@ -120,7 +122,7 @@ def linear_connection(list, idx):
     return list[int_idx] + (list[int_idx+1] - list[int_idx]) * (idx - int_idx)
 
 
-def preprocess(file_path, LEN_INPUT = 20, OVERLAP = 10, SRATE = 100):
+def preprocess(file_path):
     ### file_path : path for inputs extracted from vital file ###
     ### LEN_INPUT : length of input, OVERLAP : overlap of each input, SRATE : sampling rate from vital data ###
 
@@ -138,8 +140,9 @@ def preprocess(file_path, LEN_INPUT = 20, OVERLAP = 10, SRATE = 100):
     
     
     # dataframe to save preprocessing info
-    n_aug = int((60-LEN_INPUT)/OVERLAP) + 1   # number of data augmentation
-    column_list = ['caseid'] + [str(i+1) for i in range(n_aug*2)]
+    n_aug = int((LEN_PER_PRE-LEN_INPUT)/OVERLAP) + 1   # number of data augmentation
+    n_aug2 = int((LEN_PER_POST-LEN_INPUT)/OVERLAP) + 1
+    column_list = ['caseid'] + [str(i+1) for i in range(n_aug+n_aug2)]
     df_preprocess = pd.DataFrame(columns = column_list)
 
 
@@ -162,7 +165,7 @@ def preprocess(file_path, LEN_INPUT = 20, OVERLAP = 10, SRATE = 100):
 
 
         #dataframe에 새로운 행 만들기
-        df_preprocess.loc[f_num-1,'file_path'] = caseid
+        df_preprocess.loc[f_num-1,'caseid'] = caseid
 
         ppg_cache = f"cache/peaks/PPG_{SRATE}Hz_1min_seg/" + caseid
         ecg_cache = f"cache/peaks/ECG_{SRATE}Hz_1min_seg/" + caseid    
@@ -201,7 +204,7 @@ def preprocess(file_path, LEN_INPUT = 20, OVERLAP = 10, SRATE = 100):
             # 결측치가 많은 경우, noise 확인할 것도 없이 False -  이 경우의 noise_info는 -1로 처리
             if nan_ppg_perc > 0.05 or nan_ecg_perc > 0.05 or nan_both_perc > 0.05:
                 df_preprocess.loc[f_num-1,str(i+1)] = (False, nan_info, [-1, -1])
-                print('too much missing data')
+                print(' too much missing data', end='...')
                 continue
 
 
@@ -245,7 +248,7 @@ def preprocess(file_path, LEN_INPUT = 20, OVERLAP = 10, SRATE = 100):
             # peak 개수가 기준 미달이면 noise 계산 자세히 할 필요없이 False - 이 경우의 noise_info는 -2로 처리
             if len(idx_ppg_peak)<5/10*LEN_INPUT or len(idx_ecg_peak)<5/10*LEN_INPUT:
                 df_preprocess.loc[f_num-1,str(i+1)] = (False, nan_info, [-2, -2])
-                print('too less peaks')
+                print(' too less peaks', end='')
                 continue
 
 
@@ -314,14 +317,14 @@ def preprocess(file_path, LEN_INPUT = 20, OVERLAP = 10, SRATE = 100):
                 bool_pass = False
 
             # 이 segment의 정보를 dataframe에 저장 - (전처리 성공여부, 전처리 nan 비율, 전처리 noise 비율, 통증 점수)
-            arr = np.empty(1, dtype=object)
-            arr[0] = [bool_pass, nan_info, noise_info, 0, 0]
-            df_preprocess.loc[f_num-1,f'{i+1}'] = arr #{'pass':bool_pass, 'nan_perc':nan_info, 'noise_perc':noise_info, 'tss':0, 'cisa':0}        
+            arry = np.empty(1, dtype=object)
+            arry[0] = [bool_pass, nan_info, noise_info, 0, 0]
+            df_preprocess.loc[f_num-1,f'{i+1}'] = arry[0] #{'pass':bool_pass, 'nan_perc':nan_info, 'noise_perc':noise_info, 'tss':0, 'cisa':0}        
             print('preprocessing done...', end='')
             ##########################################################################
 
             
-        for i in range(n_aug):
+        for i in range(n_aug2):
             print('  segment', i+1, end='')
             start_idx = i*OVERLAP*SRATE # 500i
             end_idx = (i*OVERLAP + LEN_INPUT)*SRATE # 500i + 1000
@@ -352,7 +355,7 @@ def preprocess(file_path, LEN_INPUT = 20, OVERLAP = 10, SRATE = 100):
             # 결측치가 많은 경우, noise 확인할 것도 없이 False -  이 경우의 noise_info는 -1로 처리
             if nan_ppg_perc > 0.05 or nan_ecg_perc > 0.05 or nan_both_perc > 0.05:
                 df_preprocess.loc[f_num-1,str(i+n_aug+1)] = (False, nan_info, [-1, -1])
-                print('too much missing data')
+                print(' too much missing data', end='...')
                 continue
 
 
@@ -396,7 +399,7 @@ def preprocess(file_path, LEN_INPUT = 20, OVERLAP = 10, SRATE = 100):
             # peak 개수가 기준 미달이면 noise 계산 자세히 할 필요없이 False - 이 경우의 noise_info는 -2로 처리
             if len(idx_ppg_peak)<5/10*LEN_INPUT or len(idx_ecg_peak)<5/10*LEN_INPUT:
                 df_preprocess.loc[f_num-1,str(i+n_aug+1)] = (False, nan_info, [-2, -2])
-                print('too less peaks')
+                print(' too less peaks', end='...')
                 continue
 
 
@@ -478,9 +481,9 @@ def preprocess(file_path, LEN_INPUT = 20, OVERLAP = 10, SRATE = 100):
             cisa = 7 - rftn / 8
 
             # 이 segment의 정보를 dataframe에 저장
-            arr = np.empty(1, dtype=object)
-            arr[0] = [bool_pass, nan_info, noise_info, 0, 0]
-            df_preprocess.loc[f_num-1,f'{i+n_aug+1}'] = arr #{'pass':bool_pass, 'nan_perc':nan_info, 'noise_perc':noise_info, 'tss':0, 'cisa':0}            
+            arry = np.empty(1, dtype=object)
+            arry[0] = [bool_pass, nan_info, noise_info, tss, cisa]
+            df_preprocess.loc[f_num-1,f'{i+n_aug+1}'] = arry[0] #{'pass':bool_pass, 'nan_perc':nan_info, 'noise_perc':noise_info, 'tss':0, 'cisa':0}            
             print('preprocessing done...', end='')            
 
     print(f'\ndumping cache of df_preprocess {f_num}/{len(caseids)}', end='...')
@@ -504,26 +507,25 @@ def preprocess(file_path, LEN_INPUT = 20, OVERLAP = 10, SRATE = 100):
     ne_pass, e_pass = 0, 0
 
     for _, row in df_preprocess.iterrows():   
-        for i in range(0,5):
+        for i in range(n_aug):
             if row[str(i+1)][0]:
                 ne_pass = ne_pass + 1
 
-        for i in range(5,10):
+        for i in range(n_aug, n_aug+n_aug2):
             if row[str(i+1)][0]:
                 e_pass = e_pass + 1
 
-    print(f'non-event seg pass: {ne_pass/5/2684*100:.2f}%, event seg pass: {e_pass/5/2684*100:.2f}%')
+    print(f'non-event seg pass: {ne_pass/n_aug/2684*100:.2f}%, event seg pass: {e_pass/n_aug2/2684*100:.2f}%')
     print(f'passed segments : {ne_pass+e_pass}')
 
 
 # loading ~ preprocessing
-file_path = 'vital_to_np'
-#load_vital_data(file_path)
-preprocess(file_path, LEN_INPUT = 20, OVERLAP = 10, SRATE = 100)
+file_path = f'vital_to_np_{LEN_PER_PRE}s-{LEN_PER_POST}s'
+load_vital_data(file_path)
+preprocess(file_path)
 df_preprocess = pickle.load(open('cache/preprocess/df_preprocess', 'rb'))
 
-
-# shuffle caseids which survived preprocessing
+# shuffle caseids which has survived preprocessing
 p_caseids = []
 for _, row in df_preprocess.iterrows():
     for i in range(0,10):
@@ -553,12 +555,25 @@ pickle.dump(caseid_test, open('../DL_model/caseid_test','wb'))
 
 
 # input - filtering, saving
-if not os.path.exists('cache'):
-    os.mkdir('cache')
+input_path = f"../DL_model/dataset/ne{LEN_PER_PRE}s-e{LEN_PER_POST}s-len{LEN_INPUT}-{OVERLAP}/"
+if not os.path.exists('../DL_model/dataset'):
+    os.mkdir('../DL_model/dataset')
+if not os.path.exists(input_path[:-1]):
+    os.mkdir(input_path[:-1])
+    
+    
+# variables
+non_lis = []
+x_train, tss_train, cisa_train = [], [], []
+x_test, tss_test, cisa_test = [], [], []
+x_val, tss_val, cisa_val = [], [], []
+age_train, gender_train = [], []
+age_test, gender_test = [], []
+age_val, gender_val = [], []
+     
 
-
-for f_num, rows in df_preprocess.iterrows():
-    caseid = rows['caseid']
+for f_num, row in df_preprocess.iterrows():
+    caseid = row['caseid']
     print(f'\n###Input{f_num}/{len(df_preprocess)}: {caseid}###')
     
 
@@ -573,13 +588,10 @@ for f_num, rows in df_preprocess.iterrows():
         end_idx = (i*OVERLAP + LEN_INPUT)*SRATE # 500i + 1000
         
         # non-event data
-        if rows[str(i+1)][0]:
+        if row[str(i+1)][0]:
             print(' passed...lowess filtering...', end='')
             
-            save_path = f'cache/lowess_filtered/input20s-10s/{caseid}_n{i+1}.npz'
-            if os.path.exists(save_path):
-                print('already exists', end='')
-                continue
+            #save_path = f'cache/lowess_filtered/intu120s-input20s-10s/{caseid}_n{i+1}.npz'
 
             ppg_inp = vals['nPPG'][start_idx:end_idx]
             ecg_inp = vals['nECG'][start_idx:end_idx]
@@ -592,7 +604,8 @@ for f_num, rows in df_preprocess.iterrows():
             ecg_input = ecg_inp - lowess(ecg_inp)
             
             ppg_input = ppg_input - np.nanmean(ppg_input)
-            ecg_input = (ecg_input - min(ecg_input)) / (max(ecg_input) - min(ecg_input))
+            ecg_input = ecg_input - np.nanmean(ecg_input)
+            #ecg_input = (ecg_input - min(ecg_input)) / (max(ecg_input) - min(ecg_input))
             
 
             # 해당 caseid가 test set에 속하는 경우
@@ -636,20 +649,16 @@ for f_num, rows in df_preprocess.iterrows():
             print('done', end=' ')
     
     print('')
-    for i in range(n_aug):
+    for i in range(n_aug2):
         print('  segment', i+1, end='')
         start_idx = i*OVERLAP*SRATE # 500i
         end_idx = (i*OVERLAP + LEN_INPUT)*SRATE # 500i + 1000
             
         # event data
-        if rows[str(i+n_aug+1)][0]:
+        if row[str(i+n_aug+1)][0]:
             print(' passed...lowess filtering...', end='')
             
-            save_path = f'cache/lowess_filtered/input20s-10s/{caseid}_{i+1}.npz'
-            if os.path.exists(save_path):
-                print('already exists', end='')
-                continue
-
+            #save_path = f'cache/lowess_filtered/input20s-10s/{caseid}_{i+1}.npz'
             ppg_inp = vals['PPG'][start_idx:end_idx]
             ecg_inp = vals['ECG'][start_idx:end_idx]
             
@@ -704,55 +713,55 @@ for f_num, rows in df_preprocess.iterrows():
             #np.savez(save_path, ECG = ecg_input, PPG = ppg_input) 
             print('done', end=' ')
 
-    x_train = np.array(x_train, np.float32)
-    x_test = np.array(x_test, np.float32)
-    x_val = np.array(x_val, np.float32)
-    tss_train = np.array(tss_train, np.float32)
-    tss_test = np.array(tss_test, np.float32)
-    tss_val = np.array(tss_val, np.float32)
-    cisa_train = np.array(cisa_train, np.float32)
-    cisa_test = np.array(cisa_test, np.float32)
-    cisa_val = np.array(cisa_val, np.float32)
-        
-    age_train = np.array(age_train, int)
-    age_test = np.array(age_test, int)
-    age_val = np.array(age_val, int)
-    gender_train = np.array(gender_train, int)
-    gender_test = np.array(gender_test, int)
-    gender_val = np.array(gender_val, int)
-    
-    
-    # 알맞게 input 변환
-    x_train = np.transpose(x_train, [0,2,1])
-    x_val = np.transpose(x_val, [0,2,1])
-    x_test = np.transpose(x_test, [0,2,1])
+x_train = np.array(x_train, np.float32)
+x_test = np.array(x_test, np.float32)
+x_val = np.array(x_val, np.float32)
+tss_train = np.array(tss_train, np.float32)
+tss_test = np.array(tss_test, np.float32)
+tss_val = np.array(tss_val, np.float32)
+cisa_train = np.array(cisa_train, np.float32)
+cisa_test = np.array(cisa_test, np.float32)
+cisa_val = np.array(cisa_val, np.float32)
 
-    print('after concatenate + transpose')
-    print('x_train shape:', x_train.shape)
-    print('x_val shape:', x_val.shape)
-    print('x_test shape:', x_test.shape)
+age_train = np.array(age_train, int)
+age_test = np.array(age_test, int)
+age_val = np.array(age_val, int)
+gender_train = np.array(gender_train, int)
+gender_test = np.array(gender_test, int)
+gender_val = np.array(gender_val, int)
 
-          
-    # 저장하기
-    print('saving...', end='', flush=True)
-    np.savez_compressed(input_path+'x_train.npz', x_train)
-    np.savez_compressed(input_path+'x_test.npz', x_test)
-    np.savez_compressed(input_path+'x_val.npz', x_val)
-    np.savez_compressed(input_path+'tss_train.npz', tss_train)
-    np.savez_compressed(input_path+'tss_test.npz', tss_test)
-    np.savez_compressed(input_path+'tss_val.npz', tss_val)
-    np.savez_compressed(input_path+'cisa_train.npz', cisa_train)
-    np.savez_compressed(input_path+'cisa_test.npz', cisa_test)
-    np.savez_compressed(input_path+'cisa_val.npz', cisa_val)
-    
-    np.savez_compressed(input_path+'age_train.npz', age_train)
-    np.savez_compressed(input_path+'age_test.npz', age_test)
-    np.savez_compressed(input_path+'age_val.npz', age_val)    
-    np.savez_compressed(input_path+'gender_train.npz', gender_train)
-    np.savez_compressed(input_path+'gender_test.npz', gender_test)
-    np.savez_compressed(input_path+'gender_val.npz', gender_val)    
-    
-    print('done', flush=True)
-    print('size of training set(pacu):', len(x_train))
-    print('size of validation set(pacu):', len(x_val))
-    print('size of test set(pacu):', len(x_test))
+
+# 알맞게 input 변환
+x_train = np.transpose(x_train, [0,2,1])
+x_val = np.transpose(x_val, [0,2,1])
+x_test = np.transpose(x_test, [0,2,1])
+
+print('after concatenate + transpose')
+print('x_train shape:', x_train.shape)
+print('x_val shape:', x_val.shape)
+print('x_test shape:', x_test.shape)
+
+
+# 저장하기
+print('saving...', end='', flush=True)
+np.savez_compressed(input_path+'x_train.npz', x_train)
+np.savez_compressed(input_path+'x_test.npz', x_test)
+np.savez_compressed(input_path+'x_val.npz', x_val)
+np.savez_compressed(input_path+'tss_train.npz', tss_train)
+np.savez_compressed(input_path+'tss_test.npz', tss_test)
+np.savez_compressed(input_path+'tss_val.npz', tss_val)
+np.savez_compressed(input_path+'cisa_train.npz', cisa_train)
+np.savez_compressed(input_path+'cisa_test.npz', cisa_test)
+np.savez_compressed(input_path+'cisa_val.npz', cisa_val)
+
+np.savez_compressed(input_path+'age_train.npz', age_train)
+np.savez_compressed(input_path+'age_test.npz', age_test)
+np.savez_compressed(input_path+'age_val.npz', age_val)    
+np.savez_compressed(input_path+'gender_train.npz', gender_train)
+np.savez_compressed(input_path+'gender_test.npz', gender_test)
+np.savez_compressed(input_path+'gender_val.npz', gender_val)    
+
+print('done', flush=True)
+print('size of training set(pacu):', len(x_train))
+print('size of validation set(pacu):', len(x_val))
+print('size of test set(pacu):', len(x_test))
