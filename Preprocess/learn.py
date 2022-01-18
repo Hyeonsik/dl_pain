@@ -26,7 +26,7 @@ LEN_PER_POST = 120
 def load_vital_data(file_path):
     print('loading vital data...')
     # tracks to extract / VENT_SET_TV -> VENT_INSP_TM, SET_INSP_TM
-    track_names = ["SNUADC/ECG_II", "SNUADC/PLETH", "Solar8000/VENT_INSP_TM", "Primus/SET_INSP_TM", "Orchestra/PPF20_CE", "Orchestra/RFTN20_CE"]
+    track_names = ["SNUADC/ECG_II", "SNUADC/PLETH", "Solar8000/VENT_INSP_TM", "Primus/SET_INSP_TM", "Orchestra/PPF20_CE", "Orchestra/RFTN20_CE", "Solar8000/NIBP_MBP", "Solar8000/ART_MBP", "Solar8000/HR"]
 
 
     # create saving folder
@@ -59,13 +59,12 @@ def load_vital_data(file_path):
         vf = vitaldb.VitalFile(caseid, track_names)
         vals = vf.to_numpy(track_names, interval=1/SRATE)
 
-
         # intubation time - find the first t which satisfies vent_set_tm != nan & ppf_ce != nan
         t_intu = np.where(~np.isnan(vals[:,5]))[0][0]
 
         if not np.mean(~np.isnan(vals[:,2])):
             if not np.mean(~np.isnan(vals[:,3])):
-                print(f'caseid {caseid} - no valid data for insp_tm')
+                print(f'no valid data for insp_tm')
                 continue
             intu = vals[:,3]
             intv = 850 # maximum interval for "Primus/SET_INSP_TM"
@@ -91,7 +90,17 @@ def load_vital_data(file_path):
                     break
             else:
                 t_intu = t_intu + 1
-                
+            
+        # MBP value
+        if not np.mean(~np.isnan(vals[:,6])):
+            if not np.mean(~np.isnan(vals[:,7])):
+                print(f'no valid data for MBP')
+        mbp = np.array([art[i] if art[i]>30 else nibp[i] for i in range(len(nibp))])
+                   
+        # HR
+        if not np.mean(~np.isnan(vals[:,8])):
+            print('no valid data for HR')
+        hr = vals[:,8]
                         
         # non-event data : extract vital from previous 120s-60s from intubation
         ppg = vals[:,1]
@@ -100,6 +109,8 @@ def load_vital_data(file_path):
         ecg = vals[:,0]
         prev_ecg = ecg[t_intu - SRATE*120:t_intu - SRATE*60]
 
+        nmbp = mbp[t_intu - SRATE*120:t_intu - SRATE*60]
+        nhr = hr[t_intu - SRATE*120:t_intu - SRATE*60]
 
         # after intubation, pain calculated using TSS, CISA
         post_ppg = ppg[t_intu:t_intu + SRATE*LEN_PER_POST]
@@ -111,8 +122,10 @@ def load_vital_data(file_path):
         rftn = vals[:,5]
         rftn = rftn[t_intu:t_intu + SRATE*LEN_PER_POST]
     
+        embp = mbp[t_intu:t_intu + SRATE*LEN_PER_POST]
+        ehr = hr[t_intu:t_intu + SRATE*LEN_PER_POST]
     
-        np.savez(filename, nECG=prev_ecg, nPPG=prev_ppg, ECG=post_ecg, PPG=post_ppg, PPF=ppf, RFTN=rftn)
+        np.savez(filename, nECG=prev_ecg, nPPG=prev_ppg, ECG=post_ecg, PPG=post_ppg, PPF=ppf, RFTN=rftn, nMBP=nmbp, MBP=embp, nHR=nhr, HR=ehr)
         print('  completed')
     
     
