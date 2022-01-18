@@ -3,7 +3,8 @@
 *.vital
 *.pickle
 *.csv
-
+*.json
+*.hdf5
 
 .ipynb_checkpoints
 **/*.ipynb_checkpoints/
