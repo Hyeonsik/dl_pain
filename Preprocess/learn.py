@@ -9,36 +9,37 @@ import pickle
 import matplotlib.pyplot as plt
 import scipy.stats
 import statsmodels.api as sm
+import time
 
 
 SRATE = 100
 LEN_INPUT = 20
 OVERLAP = 10
 LEN_PER_PRE = 60
-LEN_PER_POST = 120
+LEN_PER_POST = 60
 
 
 def load_vital_data(file_path):
     print('loading vital data...')
+    start = time.time()
+    
     # tracks to extract / VENT_SET_TV -> VENT_INSP_TM, SET_INSP_TM
-    track_names = ["SNUADC/ECG_II", "SNUADC/PLETH", "Solar8000/VENT_INSP_TM", "Primus/SET_INSP_TM", "Orchestra/PPF20_CE", "Orchestra/RFTN20_CE", "Solar8000/NIBP_MBP", "Solar8000/ART_MBP", "Solar8000/HR"]
-
+    track_names = ["SNUADC/ECG_II", "SNUADC/PLETH", "Solar8000/VENT_INSP_TM", "Primus/SET_INSP_TM", "Orchestra/PPF20_CE", "Orchestra/RFTN20_CE", "Solar8000/NIBP_MBP", "Solar8000/ART_MBP", "Solar8000/HR", "Solar8000/ETCO2"]
 
     # create saving folder
     #file_path = "vital_to_np"
     if not os.path.exists(file_path):
         os.mkdir(file_path)
 
-
     # dataframe of patient information    
     df = pd.read_csv("https://api.vitaldb.net/cases")
-
     
     # target patients' caseids
     caseids = list(vitaldb.caseids_tiva & set(df.loc[df['ane_type'] == 'General', 'caseid']))
 
 
     cnt = 0
+    non_intu, non_mbp, non_hr, emptyCO2 = [], [], [], []
     for caseid in caseids:
         cnt = cnt + 1
         print(f'{cnt}/{len(caseids)}({caseid})', end='...')
@@ -56,44 +57,72 @@ def load_vital_data(file_path):
 
         # intubation time - find the first t which satisfies vent_set_tm != nan & ppf_ce != nan
         t_intu = np.where(~np.isnan(vals[:,5]))[0][0]
+        #t_etco2 = np.where(vals[:,9]>10)[0]
+        #t_etco2 = np.nan if not len(t_etco2) else t_etco2[0]
 
         if not np.mean(~np.isnan(vals[:,2])):
             if not np.mean(~np.isnan(vals[:,3])):
                 print(f'no valid data for insp_tm')
-                continue
+
             intu = vals[:,3]
             intv = 850 # maximum interval for "Primus/SET_INSP_TM"
         else:
             intu = vals[:,2]
             intv = 250 # maximum interval for "Solar8000/VENT_INSP_TM"
-        
+
         idc_intu = np.where(~np.isnan(intu))[0]
         while True:
+            if t_intu >= len(vals[:,0]):
+                non_intu.append(caseid)
+                print('no valid intubation time')
+                break
+
             # vent_insp_tm이 nan이 아닌 경우
             if not np.isnan(intu[t_intu]):
-                print(t_intu, end=' ')
+                #print(t_intu, end=' ')
                 idx = np.where(idc_intu==t_intu)[0][0]
+                if idx + 10 >= len(idc_intu):
+                    non_intu.append(caseid)
+                    print('...no valid intubation time')
+                    break                
                 prev = t_intu
 
+                # 모여있는 vent_insp_tm 길이 계산
                 switch = True
                 for i in range(1,11):
                     if idc_intu[idx+i] - prev > intv:
                         switch = False
-                        t_intu = t_intu + 1
                     prev = idc_intu[idx+i]
+
                 if switch:
                     break
+                    # ETCO2가 비어있는 경우, 일단 통과 
+                    # if np.isnan(t_etco2):
+                    #    emptyCO2.append(caseid)
+                    #    break
+                    # 초반에 vent_insp_tm이 예외적으로 측정된 경우 제외    
+                    # if abs(t_intu-t_etco2) < 5.5*60*SRATE:
+                    #    break
+                    # else:
+                    #    t_intu += 1
+                else:
+                    t_intu += 1
             else:
-                t_intu = t_intu + 1
-            
+                t_intu += 1
+
+                
         # MBP value
         if not np.mean(~np.isnan(vals[:,6])):
             if not np.mean(~np.isnan(vals[:,7])):
+                non_mbp.append(caseid)
                 print(f'no valid data for MBP')
+        nibp = vals[:,6]
+        art = vals[:,7]
         mbp = np.array([art[i] if art[i]>30 else nibp[i] for i in range(len(nibp))])
                    
         # HR
         if not np.mean(~np.isnan(vals[:,8])):
+            non_hr.append(caseid)
             print('no valid data for HR')
         hr = vals[:,8]
                         
@@ -122,7 +151,16 @@ def load_vital_data(file_path):
     
         np.savez(filename, nECG=prev_ecg, nPPG=prev_ppg, ECG=post_ecg, PPG=post_ppg, PPF=ppf, RFTN=rftn, nMBP=nmbp, MBP=embp, nHR=nhr, HR=ehr)
         print('  completed')
-    
+
+    end = time.time()
+    f = open(f'{file_path}/README.txt', 'w')
+    f.write(f'no valid intubation time: {non_intu}\n')
+    f.write(f'no valid MBP: {non_mbp}\n')
+    f.write(f'no valid HR: {non_hr}\n')
+    #f.write(f'empty ETCO2: {emptyCO2}\n')
+    f.write(f'total time: {end-start:.2f} sec')
+    f.close()
+
     
  # 피크 사이 wave를 모두 같은 length로 만들기 위한 함수
 def linear_connection(list, idx):
@@ -174,6 +212,9 @@ def preprocess(file_path):
         # vital data 불러오기    
         vals = np.load(f'{file_path}/{caseid}.npz')
 
+        if not np.mean(~np.isnan(vals['RFTN'])):
+            print('no RFTN value')
+            continue
 
         #dataframe에 새로운 행 만들기
         df_preprocess.loc[f_num-1,'caseid'] = caseid
@@ -487,8 +528,8 @@ def preprocess(file_path):
             rftn = vals['RFTN'][start_idx:end_idx]
             rftn = np.mean(rftn[~np.isnan(rftn)])
             tss = 1.57 - rftn / 3
-            if tss < 0:
-                tss = 0
+            #if tss < 0:
+            #    tss = 0
             cisa = 7 - rftn / 8
 
             # 이 segment의 정보를 dataframe에 저장
@@ -681,7 +722,8 @@ for f_num, row in df_preprocess.iterrows():
             ecg_input = ecg_inp - lowess(ecg_inp)
             
             ppg_input = ppg_input - np.nanmean(ppg_input)
-            ecg_input = (ecg_input - min(ecg_input)) / (max(ecg_input) - min(ecg_input))
+            ecg_input = ecg_input - np.nanmean(ecg_input)
+            #ecg_input = (ecg_input - min(ecg_input)) / (max(ecg_input) - min(ecg_input))
 
 
             # 해당 caseid가 test set에 속하는 경우
