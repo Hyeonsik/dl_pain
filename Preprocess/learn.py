@@ -1,21 +1,16 @@
 import itertools as it
 import os
-import time
-from datetime import datetime
 import pandas as pd
 import numpy as np
-import pandas as pd
 import random
 import vitaldb
 from pyvital2 import arr
 import pickle
 import matplotlib.pyplot as plt
 import scipy.stats
+import statsmodels.api as sm
 
 
-BATCH_SIZE = 1024
-MAX_CASES = 2000
-SEGLEN_IN_SEC = 20
 SRATE = 100
 LEN_INPUT = 20
 OVERLAP = 10
@@ -134,6 +129,9 @@ def linear_connection(list, idx):
     int_idx = int(idx)
     return list[int_idx] + (list[int_idx+1] - list[int_idx]) * (idx - int_idx)
 
+def lowess(y, f=0.2):
+    x = np.arange(0, len(y))
+    return sm.nonparametric.lowess(y, x, frac=f, it=0)[:, 1].T
 
 def preprocess(file_path):
     ### file_path : path for inputs extracted from vital file ###
