@@ -1,0 +1,1 @@
+model: 1D CNN 4 layers, regressioninput: ECG+PPG (pre-intubation 120~60s, post-intubation 60~120s), output: TSS
