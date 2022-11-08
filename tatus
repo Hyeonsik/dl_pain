@@ -1,0 +1,89 @@
+[33mcommit 60ab7994b3e100e826568bb075f8b8d3c69b918f[m[33m ([m[1;36mHEAD -> [m[1;32mwork[m[33m, [m[1;31morigin/work[m[33m)[m
+Author: Hyeonsik <hyeonsik98@naver.com>
+Date:   Tue Nov 8 23:19:09 2022 +0900
+
+    221108_denosing
+
+[33mcommit f5c08592ad45083d83c0c1869bf7c49dc29f3aa4[m[33m ([m[1;32mmain[m[33m)[m
+Author: Hyeonsik <hyeonsik98@naver.com>
+Date:   Thu Nov 3 11:54:16 2022 +0900
+
+    221103_previous pd works
+
+[33mcommit 29e3dbce06ad584ffc486ab662d6d0ddb0c70646[m
+Author: Hyeonsik <hyeonsik98@naver.com>
+Date:   Sun Feb 13 02:23:22 2022 +0900
+
+    220213_trial with learning rate, sample weight
+
+[33mcommit 1251c4c76072326d7d12132e3c00f1669b18b368[m
+Author: Hyeonsik <hyeonsik98@naver.com>
+Date:   Wed Feb 9 01:24:55 2022 +0900
+
+    220209_fixed input errors_trying sample weights
+
+[33mcommit b1e904f7493134086dde92ca5d9ff3c735063944[m
+Author: Hyeonsik <hyeonsik98@naver.com>
+Date:   Fri Jan 21 00:33:56 2022 +0900
+
+    22_01_20_added etco2 but seems to not work really well. so just aborted
+
+[33mcommit a3f89b1c748e2dca8100899c734e7b258d3d6576[m
+Author: Hyeonsik <hyeonsik98@naver.com>
+Date:   Thu Jan 20 14:46:40 2022 +0900
+
+    22.01.20 post-intu 60s
+
+[33mcommit a53ba4063dff0e19560f130fd61d22f982d5ea39[m
+Author: Hyeonsik <hyeonsik98@naver.com>
+Date:   Tue Jan 18 15:08:12 2022 +0900
+
+    22_01_18 working on evaluation
+
+[33mcommit 27594b99cc27a693c59980e73d952726bccac574[m
+Author: Hyeonsik <hyeonsik98@naver.com>
+Date:   Tue Jan 18 15:07:25 2022 +0900
+
+    gitignore added .json, .hdf5
+
+[33mcommit 45dffe25dc22971b3f8d9834202ce774acf2962f[m
+Author: Hyeonsik <hyeonsik98@naver.com>
+Date:   Sat Jan 15 22:55:43 2022 +0900
+
+    2022.01.15_dataset completed, found two caseid error 2116,4814
+
+[33mcommit ec357d7724bf790d3ea48712a404ee6caf77851e[m
+Author: Hyeonsik <hyeonsik98@naver.com>
+Date:   Sat Jan 15 02:08:33 2022 +0900
+
+    2022.01.15 handling with value error
+
+[33mcommit 104541662854dc737f3e52dbc1a1f99ee458c5b7[m
+Author: Hyeonsik <hyeonsik98@naver.com>
+Date:   Fri Jan 14 22:15:51 2022 +0900
+
+    2022_01_14; fixing t_intu error
+
+[33mcommit f6e5c6e3373d65a280e3d51cf76567f7aa99a8cc[m
+Author: Hyeonsik <38666464+Hyeonsik@users.noreply.github.com>
+Date:   Thu Jan 13 22:41:56 2022 +0900
+
+    Update README.md
+
+[33mcommit 51518338a5c8dbbdacafaa630a7db898e1b63db2[m
+Author: Hyeonsik <hyeonsik98@naver.com>
+Date:   Thu Jan 13 22:28:01 2022 +0900
+
+    2022_01_13_preprocessing
+
+[33mcommit a14565e40232d7d3d4cbddc461dd25c9697dcda1[m
+Author: Hyeonsik <38666464+Hyeonsik@users.noreply.github.com>
+Date:   Thu Jan 13 15:07:29 2022 +0900
+
+    Create .gitignore
+
+[33mcommit 894fea20ca7ba29e3af7d2e10eb3ad9484847c59[m
+Author: Hyeonsik <38666464+Hyeonsik@users.noreply.github.com>
+Date:   Thu Jan 13 15:06:46 2022 +0900
+
+    Initial commit
