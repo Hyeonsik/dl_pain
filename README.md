@@ -5,5 +5,6 @@ Estimating pain during surgery via vital signs is very important since anethesio
 So the purpose of the research is to develop the pain index using deep learning model to precisely estimate intraoperative pain.
 
 In this research, we used open dataset from [vitalDB](https://vitaldb.net/dataset).
+(Lee, HC., Park, Y., Yoon, S.B. et al. VitalDB, a high-fidelity multi-parameter vital signs database in surgical patients. Sci Data 9, 279 (2022). https://doi.org/10.1038/s41597-022-01411-5)
 
 **credit to LEE HC, Department of Anesthesiology and Pain Medicine, Seoul National University College of Medicine, Seoul, Korea**
