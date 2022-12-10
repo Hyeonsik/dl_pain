@@ -1,1 +1,0 @@
-model: 1D CNN 4 layers, binary classificationinput: ECG,PPG,RFTN of pre-intubation 120~60s, output: del HR 0.25 (post-intubation 0-60s)
