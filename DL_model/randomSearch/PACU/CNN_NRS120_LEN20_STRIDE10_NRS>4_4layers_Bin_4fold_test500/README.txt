@@ -1,0 +1,1 @@
+model: 1D CNN 4 layers, binary classificationinput: ECG,PPG of NRS report time 120s, output: NRS>4
